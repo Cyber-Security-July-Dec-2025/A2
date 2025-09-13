@@ -79,16 +79,18 @@ Open the shown Vite URL (default http://localhost:5173).
 
 ### Using The App
 1. Enter username + password, click Generate Keys.  
-2. Download the encrypted key file (optional but recommended).  
+2. (Recommended) Download the encrypted key file for backup.  
 3. Click Register to complete challenge signature.  
 4. Select another online user and start chatting (messages appear after mutual registration).  
-5. To reuse keys: choose password first, Load Key File, then Register.
+5. To reuse keys in a new session: enter the same username & password, Load Key File, then Register.  
+6. Logout (top-right) ends session without deleting locally stored keys or message history.
 
 ### Security Notes
 Private key never sent to server.  
 Server stores only public keys + encrypted message blobs.  
 Challenge prevents impersonation with mismatched keys.  
 Password quality directly affects private key protection—use a strong passphrase.  
+Local message persistence is stored decrypted in your browser (localStorage). Use only on trusted devices; clear storage or use a private session for higher security.
 
 ### Future Enhancements
 * Add forward secrecy (X25519 ephemeral + double-ratchet) – outside current scope.  

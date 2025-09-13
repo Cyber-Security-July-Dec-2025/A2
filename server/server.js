@@ -9,6 +9,7 @@ const cors = require('cors');
 const openpgp = require('openpgp');
 const User = require('./models/User');
 const Message = require('./models/Message');
+const Whiteboard = require('./models/Whiteboard');
 
 dotenv.config();
 
@@ -24,6 +25,12 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 const onlineUsers = new Map();
 const pending = new Map();
+const whiteboardRooms = new Map(); // Track users in whiteboard sessions
+
+// Helper function to generate session ID for two users
+function getSessionId(user1, user2) {
+  return [user1, user2].sort().join('-');
+}
 
 async function broadcastUsers(io){
   const users = await User.find({}, { _id:0, username:1, publicKey:1 }).lean();
@@ -72,7 +79,7 @@ io.on('connection', (socket) => {
       broadcastUsers(io);
       const queue = await Message.find({ to: data.username, delivered: false }).sort({ createdAt:1 });
       for(const m of queue){
-        socket.emit('message', { from: m.from, payload: JSON.parse(m.armored), createdAt: m.createdAt });
+        socket.emit('message', { _id: m._id.toString(), from: m.from, to: m.to, payload: JSON.parse(m.armored), createdAt: m.createdAt });
         m.delivered = true; await m.save();
       }
     } catch(e){ console.error(e); socket.emit('error_msg', { message: 'Verification error' }); }
@@ -83,9 +90,13 @@ io.on('connection', (socket) => {
     if(!from){ socket.emit('error_msg', { message: 'Not verified' }); return; }
     if(!to || !payload) return;
     try {
-      await Message.create({ from, to, armored: JSON.stringify(payload), type: payload.type || 'chat' });
+      const doc = await Message.create({ from, to, armored: JSON.stringify(payload), type: payload.type || 'chat' });
       const targetSocketId = onlineUsers.get(to);
-      if(targetSocketId){ io.to(targetSocketId).emit('message', { from, payload }); }
+      if(targetSocketId){
+        io.to(targetSocketId).emit('message', { _id: doc._id.toString(), from, to, payload, createdAt: doc.createdAt });
+      }
+      // Echo ack to sender so client stores canonical timestamp/id
+      socket.emit('message_ack', { _id: doc._id.toString(), from, to, payload, createdAt: doc.createdAt, tempId: payload.tempId });
     } catch(e){ console.error(e); socket.emit('error_msg', { message: 'Message store failed' }); }
   });
 
@@ -93,7 +104,109 @@ io.on('connection', (socket) => {
     const me = socket.data.username; if(!me) return;
     const msgs = await Message.find({ $or:[{ from: me, to: withUser }, { from: withUser, to: me }]})
       .sort({ createdAt: -1 }).limit(limit).lean();
-    socket.emit('history', { withUser, messages: msgs.reverse().map(m => ({ from: m.from, to: m.to, payload: JSON.parse(m.armored), createdAt: m.createdAt })) });
+    socket.emit('history', { withUser, messages: msgs.reverse().map(m => ({ _id: m._id.toString(), from: m.from, to: m.to, payload: JSON.parse(m.armored), createdAt: m.createdAt })) });
+  });
+
+  socket.on('logout', () => {
+    const u = socket.data.username;
+    if(u){
+      onlineUsers.delete(u);
+      socket.data.username = undefined;
+      broadcastUsers(io);
+    }
+    socket.emit('logged_out');
+  });
+
+  // Whiteboard event handlers
+  socket.on('join_whiteboard', async ({ withUser }) => {
+    const me = socket.data.username;
+    if(!me) return;
+    
+    const sessionId = getSessionId(me, withUser);
+    socket.join(`whiteboard-${sessionId}`);
+    
+    try {
+      let whiteboard = await Whiteboard.findOne({ sessionId });
+      if (!whiteboard) {
+        whiteboard = await Whiteboard.create({
+          sessionId,
+          participants: [me, withUser],
+          strokes: []
+        });
+      }
+      
+      socket.emit('whiteboard_history', { 
+        sessionId, 
+        strokes: whiteboard.strokes 
+      });
+      
+      // Notify other participant that someone joined
+      socket.to(`whiteboard-${sessionId}`).emit('user_joined_whiteboard', { user: me });
+    } catch(e) {
+      console.error('Whiteboard join error:', e);
+      socket.emit('error_msg', { message: 'Failed to join whiteboard' });
+    }
+  });
+
+  socket.on('draw_stroke', async ({ withUser, stroke }) => {
+    const me = socket.data.username;
+    if(!me) return;
+    
+    const sessionId = getSessionId(me, withUser);
+    
+    try {
+      const whiteboard = await Whiteboard.findOne({ sessionId });
+      if (!whiteboard) return;
+      
+      // Add stroke to database
+      whiteboard.strokes.push({
+        ...stroke,
+        timestamp: new Date()
+      });
+      await whiteboard.save();
+      
+      // Broadcast to other users in the whiteboard
+      socket.to(`whiteboard-${sessionId}`).emit('stroke_drawn', { 
+        sessionId, 
+        stroke: {
+          ...stroke,
+          timestamp: new Date()
+        }
+      });
+    } catch(e) {
+      console.error('Draw stroke error:', e);
+    }
+  });
+
+  socket.on('clear_whiteboard', async ({ withUser }) => {
+    const me = socket.data.username;
+    if(!me) return;
+    
+    const sessionId = getSessionId(me, withUser);
+    
+    try {
+      const whiteboard = await Whiteboard.findOne({ sessionId });
+      if (!whiteboard) return;
+      
+      whiteboard.strokes = [];
+      await whiteboard.save();
+      
+      // Broadcast clear to all users in the whiteboard
+      io.to(`whiteboard-${sessionId}`).emit('whiteboard_cleared', { sessionId });
+    } catch(e) {
+      console.error('Clear whiteboard error:', e);
+    }
+  });
+
+  socket.on('leave_whiteboard', ({ withUser }) => {
+    const me = socket.data.username;
+    if(!me) return;
+    
+    const sessionId = getSessionId(me, withUser);
+    socket.leave(`whiteboard-${sessionId}`);
+    
+    // Notify other participant that someone left
+    socket.to(`whiteboard-${sessionId}`).emit('user_left_whiteboard', { user: me });
   });
 
   socket.on('disconnect', () => {

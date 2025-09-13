@@ -29,18 +29,27 @@ export async function importEncryptedPrivateKey(wrapped, password){
 }
 
 // Encrypt chat payload: create random session key (OpenPGP handles), sign not required for each since we performed login signature
-export async function encryptFor(messageObject, recipientPublicKeyArmored){
-  const pub = await openpgp.readKey({ armoredKey: recipientPublicKeyArmored });
+// Encrypt for one or multiple recipients (array of public key armors)
+export async function encryptFor(messageObject, recipientPublicKeys){
+  const keysArray = Array.isArray(recipientPublicKeys) ? recipientPublicKeys : [recipientPublicKeys];
+  const pubs = [];
+  for(const k of keysArray){
+    try { pubs.push(await openpgp.readKey({ armoredKey: k })); } catch(e){ /* skip invalid key */ }
+  }
+  if(!pubs.length) throw new Error('No valid recipient keys');
   const msg = await openpgp.createMessage({ text: JSON.stringify(messageObject) });
-  return openpgp.encrypt({ message: msg, encryptionKeys: pub });
+  return openpgp.encrypt({ message: msg, encryptionKeys: pubs });
 }
 
 export async function decryptFrom(armored, privateKeyArmored, password, senderPublicKey){
   const privKey = await openpgp.decryptKey({ privateKey: await openpgp.readPrivateKey({ armoredKey: privateKeyArmored }), passphrase: password });
-  const pub = await openpgp.readKey({ armoredKey: senderPublicKey });
+  let verificationKeys = undefined;
+  if(senderPublicKey){
+    try { verificationKeys = await openpgp.readKey({ armoredKey: senderPublicKey }); } catch(_) { /* ignore */ }
+  }
   const message = await openpgp.readMessage({ armoredMessage: armored });
-  const { data } = await openpgp.decrypt({ message, decryptionKeys: privKey, verificationKeys: pub });
-  return JSON.parse(data);
+  const result = await openpgp.decrypt({ message, decryptionKeys: privKey, verificationKeys });
+  try { return JSON.parse(result.data); } catch { return { data: result.data }; }
 }
 
 export async function signChallenge(challenge, privateKeyArmored, password){
