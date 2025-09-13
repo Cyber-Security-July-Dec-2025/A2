@@ -1,107 +1,215 @@
 
-# PGPencrypt.chat
+# SecureChat - End-to-End Encrypted Chat with Whiteboard
 
-PGPencrypt.chat is an OpenPGP.js implementation in chat room setting. It allows multiple people to connect, chat, draw on a whiteboard, and transfer files all through PGP encryption.
+A modern, secure chat application with real-time whiteboard collaboration, featuring end-to-end encryption using OpenPGP.js and a beautiful, minimalistic UI.
 
-Try it live: https://pgp.sebastiancodes.online
+## 🌟 Features
 
+### 🔐 Security
+- **End-to-End Encryption**: All messages encrypted with OpenPGP.js (RSA-3072)
+- **Client-Side Key Generation**: Private keys never leave your device
+- **Challenge-Response Authentication**: Digital signature verification
+- **Secure Key Storage**: AES-GCM wrapped private keys with PBKDF2
 
-## Features
+### 💬 Chat
+- **Real-time messaging** with WebSocket communication
+- **Message persistence** with MongoDB backend
+- **Optimistic UI updates** for smooth user experience
+- **Message history** loading and local storage caching
+- **Online status indicators** for all users
 
+### 🎨 Collaborative Whiteboard
+- **Real-time drawing synchronization** between users
+- **Multiple drawing tools**: Pen, eraser with adjustable brush sizes
+- **Color palette** with 14 predefined colors
+- **Canvas persistence** - drawings saved and restored
+- **Touch and mouse support** for all devices
+- **Clear canvas** functionality
 
-## Recommendations
+### 🎯 Modern UI/UX
+- **Glassmorphism design** with gradient backgrounds
+- **Responsive layout** that works on all screen sizes
+- **Smooth animations** and hover effects
+- **Clean, minimalistic interface** 
+- **Contextual controls** that appear when needed
 
-To use PGPencrypt chat securely, please run through TOR browser and use only on a 100% uncompromised clean install of a Linux based operating system, like Tails.
+## 🏗️ Architecture
 
-## Deployment
+### Tech Stack
+- **Backend**: Node.js + Express + Socket.io + MongoDB (Mongoose)
+- **Frontend**: React 18 + Vite + OpenPGP.js
+- **Database**: MongoDB with Mongoose ODM
+- **Real-time**: Socket.io WebSockets
+- **Crypto**: OpenPGP.js for client-side encryption
 
-If  you plan on hosting your own server, run the server in node.js after installing dependancies. You will need to create a private key and public certificate for SSL. 
+### Security Model
+```
+1. User generates RSA-3072 key pair in browser
+2. Private key encrypted with AES-GCM using password-derived key
+3. Only public key sent to server during registration
+4. Server issues cryptographic challenge
+5. Client signs challenge with private key
+6. Server verifies signature and authenticates user
+7. All messages encrypted client-side before transmission
+8. Server stores only encrypted message blobs
+```
 
-Otherwise just host the client through any web server. 
-
-## Screenshot
-
-![image](https://sebastiancodes.online/github/pgp.png)
-
-## Secure WebSocket PGP Chat (Revised)
-
-### Stack
-Backend: Node.js + Express + Socket.io + MongoDB (Mongoose)  
-Frontend: React (Vite) with OpenPGP.js (client‑side key generation & message crypto)  
-Transport: WebSockets (end‑to‑end encryption at message layer)  
-
-### Core Flow
-1. User generates RSA 3072 key pair in browser (private key never leaves client).  
-2. Private key is wrapped locally with AES‑GCM using PBKDF2 derived key from password (downloadable file).  
-3. Registration sends only (username, publicKey). Server issues challenge.  
-4. Client signs challenge with private key; server verifies and marks session as authenticated.  
-5. Messages are OpenPGP encrypted (random symmetric key + recipient public key) wholly on client; server only stores armored blob.  
-6. On reconnect, any queued encrypted messages are delivered (still encrypted end‑to‑end).  
-
-### Repository Layout (added)
-server/  -> Express + Socket.io + Mongo + Mongoose models
-client-react/ -> Minimal React UI + crypto helpers
-
-Legacy static client kept under `client/` (not used by new flow).
+## 🚀 Quick Start
 
 ### Prerequisites
-Node.js >= 18  
-MongoDB running locally or Atlas URI  
+- Node.js >= 18
+- MongoDB (local or Atlas)
+- Modern web browser
 
-### Setup
-Copy environment file:
-```
-cp .env.example .env
-```
-Edit `.env` if using Atlas.
+### Installation
 
-Install server deps:
+1. **Clone the repository**
+```bash
+git clone <repository-url>
+cd pgpencrypt-chat-main
 ```
+
+2. **Setup Backend**
+```bash
 cd server
 npm install
 ```
-Run server (dev with nodemon):
-```
-npm run dev
-```
-Server starts on PORT from env (default 42069).
 
-Install frontend deps:
+3. **Configure Environment**
+```bash
+# Update MongoDB URI in server.js if needed
+# Default: MongoDB Atlas connection included
 ```
+
+4. **Start Backend Server**
+```bash
+npm run dev
+# Server runs on http://localhost:42069
+```
+
+5. **Setup Frontend**
+```bash
 cd ../client-react
 npm install
 ```
-Run frontend:
-```
+
+6. **Start Frontend**
+```bash
 npm run dev
+# Frontend runs on http://localhost:5173
 ```
-Open the shown Vite URL (default http://localhost:5173).
 
-### Using The App
-1. Enter username + password, click Generate Keys.  
-2. (Recommended) Download the encrypted key file for backup.  
-3. Click Register to complete challenge signature.  
-4. Select another online user and start chatting (messages appear after mutual registration).  
-5. To reuse keys in a new session: enter the same username & password, Load Key File, then Register.  
-6. Logout (top-right) ends session without deleting locally stored keys or message history.
+## 📱 Usage Guide
 
-### Security Notes
-Private key never sent to server.  
-Server stores only public keys + encrypted message blobs.  
-Challenge prevents impersonation with mismatched keys.  
-Password quality directly affects private key protection—use a strong passphrase.  
-Local message persistence is stored decrypted in your browser (localStorage). Use only on trusted devices; clear storage or use a private session for higher security.
+### First Time Setup
+1. **Create Account**: Choose "New User" and enter username + strong password
+2. **Generate Keys**: Click "Generate Keys" to create your encryption keys
+3. **Backup Keys**: Download your encrypted private key file (recommended)
+4. **Register**: Complete the registration process
 
-### Future Enhancements
-* Add forward secrecy (X25519 ephemeral + double-ratchet) – outside current scope.  
-* Add message signature verification per message (currently relies on transport identity).  
-* Add file transfer via chunked encrypted blobs.  
-* Add rate limiting and audit logging.  
+### Returning User
+1. **Login**: Choose "Existing User" and enter your password
+2. **Load Keys**: Upload your previously downloaded key file
+3. **Register**: Sign in with your existing identity
 
-### Legacy
-The original `server/server.js` WebSocket & static client replaced by modular Express/Socket.io implementation.  
+### Chatting
+1. **Select User**: Click on any online user in the sidebar
+2. **Send Messages**: Type and send end-to-end encrypted messages
+3. **View History**: Previous conversations are automatically loaded
 
-### License
-MIT (add if desired).
-[GPLv3](https://choosealicense.com/licenses/gpl-3.0/)
+### Whiteboard Collaboration
+1. **Open Whiteboard**: Click the "🎨 Whiteboard" button in chat header
+2. **Draw Together**: Use pen/eraser tools with adjustable sizes and colors
+3. **Real-time Sync**: See drawings appear instantly for both users
+4. **Persist Drawings**: All drawings are saved and restored on revisit
+5. **Clear Canvas**: Use "🗑️ Clear Canvas" to start fresh
+
+## 🔧 Configuration
+
+### Environment Variables
+The server uses these configuration options:
+- `PORT`: Server port (default: 42069)
+- `MONGODB_URI`: MongoDB connection string
+
+### Database Models
+- **User**: Stores usernames and public keys
+- **Message**: Stores encrypted messages with metadata
+- **Whiteboard**: Stores drawing strokes and session data
+
+## 🛡️ Security Considerations
+
+### For Maximum Security
+- Use on a clean, uncompromised system
+- Use Tor Browser for anonymous access
+- Use strong, unique passwords
+- Keep private key files secure
+- Clear browser data after use on shared devices
+
+### Current Security Level
+- ✅ End-to-end message encryption
+- ✅ Client-side key generation
+- ✅ Challenge-response authentication
+- ✅ Encrypted key storage
+- ⚠️ Local message history stored decrypted
+- ⚠️ No forward secrecy (planned enhancement)
+
+## 🗂️ Project Structure
+
+```
+├── server/                 # Backend application
+│   ├── models/            # Mongoose database models
+│   │   ├── User.js       # User model (username, publicKey)
+│   │   ├── Message.js    # Message model (encrypted content)
+│   │   └── Whiteboard.js # Whiteboard model (drawing data)
+│   ├── package.json      # Backend dependencies
+│   └── server.js         # Main server file
+├── client-react/          # Frontend application
+│   ├── src/
+│   │   ├── ui/
+│   │   │   ├── App.jsx   # Main React component
+│   │   │   └── Whiteboard.jsx # Whiteboard component
+│   │   ├── crypto.js     # OpenPGP.js crypto utilities
+│   │   └── main.jsx      # React entry point
+│   ├── package.json      # Frontend dependencies
+│   └── vite.config.js    # Vite configuration
+├── client/               # Legacy static client (unused)
+└── README.md            # This file
+```
+
+## 🔮 Future Enhancements
+
+- [ ] **Forward Secrecy**: Implement X25519 ephemeral keys with double-ratchet
+- [ ] **File Transfer**: Encrypted file sharing capabilities  
+- [ ] **Group Chat**: Multi-user encrypted conversations
+- [ ] **Voice/Video**: WebRTC integration with encryption
+- [ ] **Mobile App**: React Native implementation
+- [ ] **Rate Limiting**: Server-side abuse prevention
+- [ ] **Audit Logging**: Security event monitoring
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the GPLv3 License - see the [LICENSE](https://choosealicense.com/licenses/gpl-3.0/) for details.
+
+## 🔗 Links
+
+- **Live Demo**: [Coming Soon]
+- **Documentation**: This README
+- **Issues**: [GitHub Issues]
+- **Security**: Report vulnerabilities responsibly
+
+## ⚠️ Disclaimer
+
+This software is provided for educational and research purposes. While it implements strong cryptographic practices, it has not undergone formal security auditing. Use at your own risk in production environments.
+
+---
+
+**Built with ❤️ for privacy and security**
 
